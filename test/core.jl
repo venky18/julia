@@ -3678,3 +3678,11 @@ f6846() = (please6846; 2)
 @inline f14767(x) = x ? A14767 : ()
 const A14767 = f14767(false)
 @test A14767 === ()
+
+f14792(x::Int) = x
+g14792(;k...) = f14792(1;k...)
+@test Base.return_types(g14792,()) == [Int]
+h14792(x::Int) = x
+h14792(x::Float32;k=1) = x
+j14792(;k...) = h14792(1;k...)
+@test Base.return_types(j14792,()) == [Int]

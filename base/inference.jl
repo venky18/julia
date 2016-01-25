@@ -681,7 +681,7 @@ let stagedcache=Dict{Any,Any}()
     end
 end
 
-function abstract_call_gf(f, fargs, argtype, e)
+function abstract_call_gf(f, fargs, argtype, e, pessimistic_nomatch = true)
     argtypes = argtype.parameters
     tm = _topmod((inference_stack::CallStack).sv)  # TODO pass in sv instead
     if length(argtypes)>1 && argtypes[2]===Int && (argtypes[1] <: Tuple ||
@@ -724,7 +724,7 @@ function abstract_call_gf(f, fargs, argtype, e)
         # TODO: it would be nice to return Bottom here, but during bootstrap we
         # often compile code that calls methods not defined yet, so it is much
         # safer just to fall back on dynamic dispatch.
-        return Any
+        return pessimistic_nomatch ? Any : Bottom
     end
     for (m::SimpleVector) in x
         sig = m[1]
@@ -1023,11 +1023,14 @@ function abstract_call(f, fargs, argtypes::Vector{Any}, vtypes, sv::StaticVarInf
         ff = isconstantfunc(fargs[3 + 2*kwcount], sv)
         if !(ff===false)
             ff = _ieval(ff,sv)
-            if isgeneric(ff) && isdefined(ff.env,:kwsorter)
+            if isgeneric(ff)
+                # can happen without error if calling a non-kw function with a 0-length kwarg array
+                isdefined(ff.env, :kwsorter) || return Bottom
                 # use the fact that kwcall(...) calls ff.env.kwsorter
                 posargt = argtypes[(5+2*kwcount):end]
                 return abstract_call_gf(ff.env.kwsorter, (),
-                                        Tuple{Array{Any,1}, posargt...}, e)
+                                        Tuple{Array{Any,1}, posargt...}, e,
+                                        false) # be optimistic about non matching methods
             end
         end
         # TODO: call() case
